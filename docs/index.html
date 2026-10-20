@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self' https:; base-uri 'none'; form-action 'none'">
 <title>9GSound · Station helper</title>
 <style>
 :root {
@@ -253,7 +254,17 @@ footer { margin-top: 34px; color: var(--ink-2); font-size: 13px; max-width: 62ch
     </details>
   </main>
 
-  <footer>9GSound companion. Opening a port exposes your station to the whole internet; 9GSound limits connections and ignores anything that doesn't introduce itself properly, but only run a station on a network and phone you're comfortable exposing.</footer>
+  <!-- Live stations, read from the helper server's directory (hidden when there is none) -->
+  <section class="card" id="onAir" hidden style="margin-top:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <h2 style="margin:0">Stations on air</h2>
+      <button class="quiet" id="onAirRefresh" type="button">Refresh</button>
+    </div>
+    <p class="small" id="onAirNote" style="margin:8px 0 12px"></p>
+    <ul id="onAirList" style="list-style:none;padding:0;margin:0"></ul>
+  </section>
+
+  <footer>9GSound companion. A station that is running and reachable is listed in the directory above (its name, public address and port) until it stops. Opening a port exposes your station to the whole internet; 9GSound limits connections and ignores anything that doesn't introduce itself properly, but only run a station on a network and phone you're comfortable exposing.</footer>
 </div>
 
 <script>
@@ -326,7 +337,7 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
     return {
       app: 'ninegsound://join?' + q,
       intent: 'intent://join?' + q + '#Intent;scheme=ninegsound;end',
-      page: location.origin + '/?join=' + encodeURIComponent(host + ':' + port) + '&name=' + encodeURIComponent(name)
+      page: location.origin + location.pathname.replace(/index\.html$/, '') + '?join=' + encodeURIComponent(host + ':' + port) + '&name=' + encodeURIComponent(name)
     };
   }
 
@@ -380,13 +391,52 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
     } else box.hidden = true;
   }
 
-  fetch('/api/whoami', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+  // Where the optional connect-back service lives. On Cloudflare the page and API share an origin ('');
+  // on static hosting (GitHub Pages) config.json may name a separate Worker, or leave it empty.
+  var apiBase = null;           // null = not resolved yet, '' = none available
+  function cleanApi(v) {
+    if (typeof v !== 'string' || !v.trim()) return '';
+    try { var u = new URL(v.trim()); return u.protocol === 'https:' ? u.origin + u.pathname.replace(/\/+$/, '') : ''; }
+    catch (e) { return ''; }
+  }
+  function getJson(url, ms) {
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, ms || 8000);
+    return fetch(url, { cache: 'no-store', signal: ctl.signal })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) { clearTimeout(t); return j; }, function (e) { clearTimeout(t); throw e; });
+  }
+  function resolveApi() {
+    // Same-origin API first (Cloudflare Worker deployment), then config.json (static hosting).
+    return getJson('api/whoami', 5000).then(function (j) {
+      return (j && (j.version === 4 || j.version === 6)) ? { base: 'api-same', who: j } : Promise.reject();
+    }).catch(function () {
+      return getJson('config.json', 5000).then(function (c) { return { base: cleanApi(c && c.api), who: null }; })
+        .catch(function () { return { base: '', who: null }; });
+    });
+  }
+  function lookupAddress(api) {
+    if (api.who) return Promise.resolve(api.who);
+    if (api.base) return getJson(api.base + '/api/whoami', 8000);
+    // Static hosting: ask a public what-is-my-address service. api4 answers only over IPv4.
+    return getJson('https://api4.ipify.org?format=json', 8000).then(function (j) { return { ip: j.ip, version: 4 }; })
+      .catch(function () {
+        return getJson('https://api64.ipify.org?format=json', 8000).then(function (j) {
+          return { ip: j.ip, version: IPV4.test(j.ip || '') ? 4 : 6 };
+        });
+      });
+  }
+  function probeUrl(port) { return (apiBase === 'api-same' ? 'api' : apiBase + '/api') + '/probe?port=' + port; }
+
+  var ready = resolveApi().then(function (api) {
+    apiBase = api.base;
+    return lookupAddress(api);
+  }).then(function (j) {
     if (j && j.version === 6) observedV6 = true;
     else if (j && IPV4.test(j.ip || '')) observedIp = j.ip;
     renderAddressModule(); showMismatch();
-    // Arrived from the app: start without another tap, but only when this browser is on the station's own
-    // network; otherwise the result would describe a different connection (the banner above says so).
-    if (appIp && observedIp && appIp === observedIp && !observedV6) run();
+    // Arrived from the app: start without another tap, but only when a test service exists and this browser
+    // is on the station's own network; otherwise the result would describe a different connection.
+    if (apiBase && appIp && observedIp && appIp === observedIp && !observedV6) run();
   }).catch(function () { renderAddressModule(); });
 
   function guidance(kind, port, data) {
@@ -458,6 +508,16 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
       ]);
       return;
     }
+    if (kind === 'noprobe') {
+      head('warn', 'No connect-back test on this page', 'This copy of the helper is hosted as a static page, which cannot open a connection back to your station. Your address above was read, and the share link and QR code still work.');
+      steps([
+        'Rely on the app\u2019s own result for the router side (the port it opened, and the address it found).',
+        'For outside proof, ask someone on another network (mobile data, not your Wi-Fi) to open the share link and tap Open in 9GSound.',
+        'Or deploy the optional Worker in the companion folder and put its address in config.json.'
+      ]);
+      if (ip !== 'your address' && port) showShare(ip, port, stationName);
+      return;
+    }
     if (kind === 'ipv6') {
       head('warn', 'This browser used IPv6', 'Stations are reached over IPv4, and this page can only test the address it sees you at. Open it from a device or network that uses IPv4, or rely on the app\u2019s own check.');
       return;
@@ -495,9 +555,15 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
 
   function run() {
     if (busy) return;
+    if (apiBase === null) { ready.then(run); return; }
     var port = toPort($('port').value);
     if (!port || port < 1024) {
       guidance('error', port || 0, { error: 'Enter a port from 1024 to 65535 (the default is 7654).' });
+      return;
+    }
+    if (!apiBase) {
+      setMod(2, 'idle', 'Not tested', 'Needs a test server'); setMod(3, 'idle', 'Not tested', '');
+      guidance('noprobe', port, {});
       return;
     }
     busy = true;
@@ -509,7 +575,7 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
     $('verdict').hidden = true;
 
     var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 25000);
-    fetch('/api/probe?port=' + port, { cache: 'no-store', signal: ctl.signal })
+    fetch(probeUrl(port), { cache: 'no-store', signal: ctl.signal })
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
       .then(function (res) { finish(port, res); })
       .catch(function () { finish(port, { status: 0, body: { ok: false, error: 'The test didn\u2019t finish. Check your connection and try again.' } }); })
@@ -555,6 +621,77 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
 
   $('go').addEventListener('click', run);
   $('port').addEventListener('keydown', function (e) { if (e.key === 'Enter') run(); });
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  var box = document.getElementById('onAir');
+  if (!box) return;
+  var IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+  var android = /Android/i.test(navigator.userAgent);
+  var base = null, timer = null;
+
+  function getJson(url, ms) {
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, ms || 8000);
+    return fetch(url, { cache: 'no-store', signal: ctl.signal })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) { clearTimeout(t); return j; }, function (e) { clearTimeout(t); throw e; });
+  }
+  function cleanApi(v) {
+    try { var u = new URL(String(v || '').trim()); return u.protocol === 'https:' ? u.origin + u.pathname.replace(/\/+$/, '') : ''; }
+    catch (e) { return ''; }
+  }
+  // Same-origin API (Cloudflare) first; otherwise the server named in config.json (static hosting).
+  function resolve() {
+    return getJson('api/stations', 6000).then(function () { return 'api'; }, function (e) {
+      return getJson('config.json', 5000).then(function (c) { return cleanApi(c && c.api) ? cleanApi(c.api) + '/api' : ''; }, function () { return ''; });
+    });
+  }
+  function cleanName(s) { return String(s || '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, '').trim().slice(0, 60); }
+  function ago(sec) { return sec < 90 ? 'just now' : Math.round(sec / 60) + ' min ago'; }
+  function link(host, port, name) {
+    var q = 'host=' + encodeURIComponent(host) + '&port=' + port + '&name=' + encodeURIComponent(name);
+    return android ? 'intent://join?' + q + '#Intent;scheme=ninegsound;end' : 'ninegsound://join?' + q;
+  }
+
+  function render(list) {
+    var ul = document.getElementById('onAirList');
+    ul.textContent = '';
+    var note = document.getElementById('onAirNote');
+    if (!list.length) { note.textContent = 'No station is on air right now.'; return; }
+    note.textContent = list.length === 1 ? 'One station is on air.' : list.length + ' stations are on air. Pick one.';
+    list.forEach(function (st) {
+      if (!IPV4.test(st.host || '') || !(st.port >= 1 && st.port <= 65535)) return;
+      var name = cleanName(st.name), addr = st.host + ':' + st.port;
+      var li = document.createElement('li');
+      li.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)';
+      var info = document.createElement('div'); info.style.cssText = 'flex:1 1 180px;min-width:0';
+      var t = document.createElement('div'); t.style.fontWeight = '700'; t.textContent = name || 'Unnamed station';
+      var a = document.createElement('div'); a.className = 'small'; a.textContent = addr + ' \u00b7 ' + ago(st.ageSeconds || 0);
+      info.appendChild(t); info.appendChild(a);
+      var open = document.createElement('a'); open.className = 'btn'; open.textContent = 'Open in 9GSound'; open.setAttribute('href', link(st.host, st.port, name));
+      var cp = document.createElement('button'); cp.className = 'quiet'; cp.type = 'button'; cp.textContent = 'Copy';
+      cp.addEventListener('click', function () {
+        var done = function (ok) { cp.textContent = ok ? 'Copied' : 'Press and hold'; setTimeout(function () { cp.textContent = 'Copy'; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(addr).then(function () { done(true); }, function () { done(false); });
+        else done(false);
+      });
+      li.appendChild(info); li.appendChild(open); li.appendChild(cp); ul.appendChild(li);
+    });
+  }
+
+  function load() {
+    getJson(base + '/stations', 8000).then(function (j) { render((j && j.stations) || []); },
+      function () { document.getElementById('onAirNote').textContent = 'Couldn\u2019t reach the station directory. Try Refresh.'; });
+  }
+
+  resolve().then(function (b) {
+    if (!b) return;                       // no directory server: leave the card hidden
+    base = b; box.hidden = false; load();
+    timer = setInterval(load, 30000);
+    document.getElementById('onAirRefresh').addEventListener('click', load);
+  });
 })();
 </script>
 </body>
