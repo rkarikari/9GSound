@@ -662,13 +662,14 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
     if (!list.length) { note.textContent = 'No station is on air right now.'; return; }
     note.textContent = list.length === 1 ? 'One station is on air.' : list.length + ' stations are on air. Pick one.';
     list.forEach(function (st) {
-      if (!IPV4.test(st.host || '') || !(st.port >= 1 && st.port <= 65535)) return;
-      var name = cleanName(st.name), addr = st.host + ':' + st.port;
+      var relayed = !!st.relay;
+      if (!relayed && (!IPV4.test(st.host || '') || !(st.port >= 1 && st.port <= 65535))) return;
+      var name = cleanName(st.name), addr = relayed ? '' : st.host + ':' + st.port;
       var li = document.createElement('li');
       li.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)';
       var info = document.createElement('div'); info.style.cssText = 'flex:1 1 180px;min-width:0';
       var t = document.createElement('div'); t.style.fontWeight = '700'; t.textContent = name || 'Unnamed station';
-      var a = document.createElement('div'); a.className = 'small'; a.textContent = addr + ' \u00b7 ' + ago(st.ageSeconds || 0);
+      var a = document.createElement('div'); a.className = 'small'; a.textContent = (addr ? addr + ' \u00b7 ' : '') + ago(st.ageSeconds || 0);
       info.appendChild(t); info.appendChild(a);
       var open = document.createElement('a'); open.className = 'btn'; open.textContent = 'Open in 9GSound'; open.setAttribute('href', link(st.host, st.port, name));
       var cp = document.createElement('button'); cp.className = 'quiet'; cp.type = 'button'; cp.textContent = 'Copy';
@@ -677,7 +678,9 @@ var qrcode=(function(){var P=function(x,w){var g=236,l=17,n=x,s=O[w],t=null,r=0,
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(addr).then(function () { done(true); }, function () { done(false); });
         else done(false);
       });
-      li.appendChild(info); li.appendChild(open); li.appendChild(cp); ul.appendChild(li);
+      li.appendChild(info);
+      if (!relayed) { li.appendChild(open); li.appendChild(cp); }
+      ul.appendChild(li);
     });
   }
 
