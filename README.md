@@ -87,7 +87,7 @@ Chat with an assistant that already knows your listening history.
 A song-request network that runs over plain **TCP/UDP sockets** on Wi-Fi, mobile data, or a VPN overlay such as **ZeroTier** — no server, no Bluetooth, no location permission.
 
 **Roles**
-- **Station** — collects requests and Top submissions. Entered only through the hidden security entry (see *Running a station*); the Requests tab has no Station button.
+- **Station** — collects requests and Top submissions. Reserved for authorised operators.
 - **Listener** — sends requests and Top lists to the station.
 
 **How it connects**
@@ -108,11 +108,9 @@ A station finds its own way onto the internet, and the Requests tab says plainly
 4. **Proof from outside (optional).** With the [companion page](companion/README.md) set in Settings, a server on the internet connects back to the station and reports whether a 9GSound station answered. Without it, the card says "port opened" but not "proven".
 5. **Staying right.** It re-checks on network changes and every few minutes, because public addresses change.
 
-Hardening for an open port: at most 64 live links (8 per remote address); a link must send a small, valid HELLO within 15 s or it is dropped; nothing larger than 1 KB is accepted before HELLO; a link sending more than 300 frames in 10 s is cut off.
-
 **Running a station**
-- **Station mode is hidden and code-protected.** There is no Station button on the Requests tab. Open **Settings → About** and tap the About card **8 times in quick succession** (nothing shows while you tap; the 8th gives a short buzz) to bring up the *Station access* pop-up. Enter the station name *and the code issued for that name* — a wrong code does nothing. When the code is accepted the pop-up closes, the station starts and the app takes you to the Requests tab. If the device is already running a station, the 8 taps just say so. Codes are not chosen by the person at the device: each is derived from the station name with a secret fixed when the app is built (see *Station codes* under Build), so only whoever builds the app can issue one. Case and repeated spaces in the name don't matter. Four wrong tries are free; after that entry locks for 30 s, doubling per further miss up to 15 min, and the count survives app restarts.
-- **Registration persists.** Once accepted, the station is remembered across app restarts, process kills, phone reboots and in-app updates, and comes back on the air by itself — without asking for the code again. It is forgotten only when you press **Stop** (which asks to confirm); starting again then needs the code. The code is stored encrypted with the Android Keystore and re-checked against the name every time it is read, so editing stored data or restoring a backup on another phone can't create a working station.
+- **Station mode is protected.** Only authorised operators can start a station; an ordinary listener's device can't switch it on.
+- **Registration persists.** Once started, the station is remembered across app restarts, process kills, phone reboots and in-app updates, and comes back on the air by itself. It is forgotten only when you press **Stop** (which asks to confirm); starting it again then needs authorisation.
 - **Keeps running unattended.** A running station is held by its own foreground service (`StationService`) with a CPU wake lock and a Wi-Fi lock, so screen-off, background and swipe-from-recents don't stop it. If Android kills it, the system restarts it and it re-reads its registration. A 30-second watchdog restarts the station if it is ever found stopped, refreshes its shown addresses and ages old requests out of the queue even with the app closed; the mesh transport re-opens its port and discovery sockets by itself if they fail. The notification has no Stop button on purpose — stopping is done in the app.
 - **Battery setting.** Stations show a prompt to allow unrestricted battery use; some phone makers (Xiaomi, Huawei, Oppo, Samsung "sleeping apps") also have their own auto-start / background limits that only the person can lift in system settings.
 - A station's request queue, ban list and blacklist are held in memory, so they start empty again after a restart; received Top lists are saved as before.
@@ -120,7 +118,7 @@ Hardening for an open port: at most 64 live links (8 per remote address); a link
 **Station tools**
 - Live incoming request queue with shout-outs/dedications.
 - Long-press a request to mark it played; it stays hidden for a configurable time (1 h, 3 h, 6 h, 1 day).
-- **Spam control:** more than 6 requests in 30 s from one requester are dropped; repeated offenders are automatically banned. Manual **Ban / Unban** is available.
+- **Spam control:** requests flooding in from one requester are dropped and repeat offenders are automatically banned. Manual **Ban / Unban** is available.
 - If no station is connected, requests can still go out through the **system share sheet** (with album art) to any messaging app.
 
 **🏆 Top Songs**
@@ -157,7 +155,7 @@ Pick **Weekly / Monthly / Yearly**, choose the year, month and week (a • marks
 - **When.** Only while the app is open on screen — no background job, alarm or service. It waits about 45 seconds after the app comes up, looks at most **once a day**, and retries a failed look after an hour. It stands down on Battery Saver, with no connection, or on a metered connection under Data Saver, and tries again the next time you open the app.
 - **Light on data.** One small request (a few KB) on its own low-priority thread, conditional (ETag) so an unchanged answer is nearly free; if GitHub's API refuses, it falls back to the `/releases/latest` redirect.
 - **The pop-up.** A small translucent card under the top bar. Tap it to download and install; swipe it away to hide that release until a newer one appears. While downloading it shows a progress bar and percentage.
-- **Install.** The system download manager fetches the APK (it survives the app closing). The file is then checked — size as GitHub reports it, that it is really 9GSound, that its version code is newer — before it is handed to the system installer. Android itself still refuses anything not signed with 9GSound's own key. The first time, Android asks you to allow 9GSound to install apps.
+- **Install.** The system download manager fetches the APK (it survives the app closing). The file is verified before it is handed to the system installer, and Android itself still refuses anything not signed with 9GSound's own key. The first time, Android asks you to allow 9GSound to install apps.
 - **Check now.** Settings → **App updates** → **Check now** looks immediately: it ignores the once-a-day limit and Battery Saver / Data Saver (it still needs a connection), and brings back a pop-up you swiped away if that release is still newer.
 - **Always says what happened.** The line under the button reports how the last look ended — *up to date*, *update available*, *could not reach GitHub (reason)*, or *skipped (Battery Saver / Data Saver / offline)* — and when it was. Switching the check on also looks straight away if one is due.
 - **Switch it off.** Settings (gear in the top bar) → **App updates** → **Check for new version**.
@@ -174,7 +172,7 @@ Tap the **gear** in the top bar to open the Settings page — every app setting 
 | **Internet access (Station)** | Whether a station opens its port on the router automatically |
 | **AI Chat** | Provider (LLM7 / OpenRouter / Ollama), token, API key or host, model and model refresh |
 | **App updates** | The *Check for new version* switch and the installed version |
-| **About** | Version and credit. Tapping this card 8 times in a row (each tap within 2 s of the last) opens the Station security entry |
+| **About** | Version and credit |
 
 The Auto Mode and Requests tabs show their current values with a shortcut that opens this page, and the AI tab's gear opens it too.
 
@@ -230,30 +228,48 @@ No location, Bluetooth, contacts or storage permissions are needed. Exports use 
 3. Run on a **real device** for reliable microphone behaviour.
 4. Grant the **Microphone** permission on first use.
 
-### Station codes
-Station mode is unlocked by a code derived from the station name with a **build secret** (`HMAC-SHA256`, shortened to `XXXX-XXXX`). Provide the secret from outside the repository — never commit it — by any of:
-- `stationCodeSecret=<long random text>` in `~/.gradle/gradle.properties`
-- `./gradlew assembleRelease -PstationCodeSecret=<…>`
-- the environment variable `NINEG_STATION_SECRET`
-
-A **release build made without a secret has no valid codes**, so Station mode stays locked (it fails closed, and the Requests tab says so). Debug builds fall back to a fixed test secret (`9gsound-debug-only-secret`) so station mode can be tried while developing. Keep using the same secret for every release: changing it invalidates every code already issued, and registered stations stop being recognised.
-
-Issue a code with `tools/station_code.py`. It finds the secret the same way the build does — `stationCodeSecret` in `~/.gradle/gradle.properties` (or `$GRADLE_USER_HOME`), then the project's own `gradle.properties`, then `NINEG_STATION_SECRET` — and only prompts if none is set. It prints where the secret came from, so a mismatch with the build is easy to spot:
-
-```
-python3 tools/station_code.py "Joy FM" "Peace FM"
-```
-
-The secret is compiled into the app, so this stops casual use and name impersonation, not someone who takes the APK apart and extracts it.
-
 ### Versioning
-The single source of truth is at the top of `app/build.gradle.kts` (`appVersionCode`, `appVersionName`). Release APKs are named `9GSound_v<version>_<buildType>.apk`. To ship an update, publish a GitHub release on `rkarikari/9GSound` (marked **Latest**) with that `…_release.apk` attached and a higher `appVersionName`; installed copies will offer it. The repository is set by `UpdateLogic.REPO`.
+The single source of truth is at the top of `app/build.gradle.kts` (`appVersionCode`, `appVersionName`). Release APKs are named `9GSound_v<version>_<buildType>.apk`. To ship an update, publish a GitHub release on `rkarikari/9GSound` (marked **Latest**) with that `…_release.apk` attached and a higher `appVersionName`; installed copies will offer it.
 
+---
 
+## 📁 Project Structure
+
+```
+9GSound/
+├── build.gradle.kts · settings.gradle.kts · gradle/libs.versions.toml
+└── app/src/main/
+    ├── AndroidManifest.xml
+    ├── res/                       — strings, themes, launcher icons, FileProvider paths
+    └── java/com/radiosport/ninegsound/
+        ├── MainActivity.kt        — Application class (NineGSoundApp) + main activity
+        ├── data/
+        │   ├── api/               — Retrofit services: LLM7, OpenRouter, Ollama, LRCLIB
+        │   ├── models/            — domain models, Room entities, Shazam & mesh models,
+        │   │                        chart calendar (ChartKey) & chart archive entities
+        │   └── repository/        — Song, Ai, Lyrics, Settings, Mesh repositories,
+        │                            Room database, model-verdict & Top-chart stores,
+        │                            permanent chart archive (ChartDatabase, ChartArchiveRepository)
+        ├── di/                    — Hilt module (Room, Retrofit, Gson, OkHttp)
+        ├── reach/                 — station reachability: ReachabilityLogic (pure rules + wire formats),
+        │                            PortMapper (PCP / NAT-PMP / UPnP), PublicIpResolver, ReachabilityManager
+        ├── service/               — AutoMonitorService (foreground, microphone),
+        │                            StationService (foreground, keeps a station on the air), StationBootReceiver
+        ├── update/                — in-app updates: UpdateLogic (pure rules), UpdateChecker (GitHub look),
+        │                            UpdateInstaller (download, verify, install), UpdatePrompt (pop-up + settings rows)
+        ├── ui/
+        │   ├── components/        — shared composables
+        │   ├── screens/           — SongId, Lyrics, AutoMode, History, AiAnalysis, MeshRequest, Charts, Settings, Navigation
+        │   └── theme/             — Material 3 colours and typography
+        ├── utils/                 — AudioRecorder, ShazamFingerprint, ShazamRecognizer, SongEnricher,
+        │                            SongExporter, ChartExporter, SongShareHelper, LrcParser, TopChart,
+        │                            MeshNetworkManager
+        └── viewmodel/             — Song, Lyrics, Auto Mode, AI, Settings, Mesh, Charts view models
+```
 
 `companion/` (beside `app/`) is the optional helper page and connect-back test for stations — a small Cloudflare Worker; see [companion/README.md](companion/README.md).
 
-`app/src/test` holds JVM unit tests for the chart calendar and ranking rules, the update rules (`UpdateLogicTest`), the reachability rules and wire formats (`ReachabilityLogicTest`), the port-opening code run against fake routers on loopback (`PortMapperTest`), the station code and lock-out rules (`StationCodeTest`), and the 8-tap rule behind the hidden station entry (`TapSequenceDetectorTest`).
+`app/src/test` holds JVM unit tests for the chart calendar and ranking rules, the update rules (`UpdateLogicTest`), the reachability rules and wire formats (`ReachabilityLogicTest`), and the port-opening code run against fake routers on loopback (`PortMapperTest`).
 
 ---
 
@@ -264,6 +280,53 @@ The single source of truth is at the top of `app/build.gradle.kts` (`appVersionC
 - Background monitoring uses battery by design; the wake lock is released as soon as Auto Mode stops.
 
 ---
+
+## 🆕 What's New in 1.08 (this build)
+
+- **Station access reworked.** Starting a station is now restricted to authorised operators, and the Requests tab is listener-only.
+
+## 🆕 What's New in 1.07
+
+- **Station mode is protected.** Becoming a station now needs authorisation; without it the device stays a listener.
+- **Stations survive restarts.** The registration is saved and the station comes back on its own after an app restart, a kill, a reboot or an update.
+- **Stations stay on the air.** New `StationService` foreground service with wake and Wi-Fi locks, watchdog and sticky restart; the mesh port and discovery sockets now re-open themselves instead of giving up on the first error; Stop asks for confirmation; a prompt offers the battery exemption. New permissions `FOREGROUND_SERVICE_SPECIAL_USE` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; `RECEIVE_BOOT_COMPLETED` is now used.
+
+- **Stations reach the internet by themselves.** A station works out its public address from several sources, asks the router to open the mesh port (PCP, NAT-PMP, then UPnP), keeps the mapping renewed, and shows the result on the Requests tab with a plain-language reason when it can't (carrier-grade NAT, mobile data, router refusing). See *Requests → Reaching a station from outside its network*.
+- **Share a station.** *Share link* hands out a join link; tapping one in a message opens 9GSound and asks before connecting. *Connect by IP* now takes `ip:port`.
+- **Companion page (optional).** `companion/` holds a small web page and connect-back test that proves the port works from the real internet and builds link/QR sharing.
+- **Safer open port.** The station now limits and validates incoming connections.
+- New Settings section **Internet access (Station)**; new permission `CHANGE_WIFI_MULTICAST_STATE`.
+
+## 🆕 Update-check fix and top-bar subtitle (1.05)
+
+- **Update check fixed and made visible.** Settings → App updates now has a **Check now** button and a status line that says how the last check ended (up to date / update available / could not reach GitHub, with the reason / skipped for Battery Saver, Data Saver or no connection). Previously a skipped or failed check was silent, and a check could only happen once a day. Modelled on 9GRadio's update-check report.
+- Turning **Check for new version** on now checks straight away; a manual check also re-offers an update you had swiped away.
+- The line under the app name in the top bar now reads **Quality control on AirPlay** (the copyright and version stay in the About card at the bottom of Settings).
+- A debug build that is offered the release APK now says why it cannot install it instead of "not a newer build".
+
+## 🆕 What's New in 1.05
+
+- New **Settings page** (gear in the top bar) that gathers every app setting in one place: theme, Auto Mode station name and interval, request name and hide-played duration, and the AI provider, key and model. Dark/light is now switchable in the app.
+- **In-app updates:** a pop-up offers newer GitHub releases and installs them (see *Updates*); switch it off under Settings → App updates.
+- Auto Mode's settings card is now a compact summary with a shortcut to Settings; the Requests tab's duration chip opens Settings.
+- Fix: Auto Mode's station name and interval are now actually saved (they were only kept for the open screen).
+
+## 🆕 What's New in 1.04
+
+- New **Charts** tab: Top 10 / 25 / 40 / 50 / 100 for any week, month or year, kept permanently.
+- Top lists now cover the **year** as well as the week and month, and **Top 40** joins the list sizes.
+- Weeks now follow the chart calendar (4 per month, 48 per year) instead of Monday–Sunday weeks.
+- Station keeps every received list forever (even late ones); backup, CSV export and restore of the whole archive.
+- Seven tabs now: the navigation labels are slightly smaller.
+
+## 🆕 What's New in 1.03
+
+- Auto Mode now truly runs in the background (foreground service + wake lock).
+- A single failed recording no longer stops background monitoring.
+- Silence detection and a longer retry clip improve unattended accuracy.
+- OpenRouter key and LLM7 token are encrypted with the Android Keystore.
+- History database can no longer be silently wiped by a missing migration.
+- Notification permission is requested with the standard Android pop-up.
 
 ---
 
