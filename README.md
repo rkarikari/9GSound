@@ -249,42 +249,7 @@ The secret is compiled into the app, so this stops casual use and name impersona
 ### Versioning
 The single source of truth is at the top of `app/build.gradle.kts` (`appVersionCode`, `appVersionName`). Release APKs are named `9GSound_v<version>_<buildType>.apk`. To ship an update, publish a GitHub release on `rkarikari/9GSound` (marked **Latest**) with that `…_release.apk` attached and a higher `appVersionName`; installed copies will offer it. The repository is set by `UpdateLogic.REPO`.
 
----
 
-## 📁 Project Structure
-
-```
-9GSound/
-├── build.gradle.kts · settings.gradle.kts · gradle/libs.versions.toml
-├── tools/                         — station_code.py (issues station codes)
-└── app/src/main/
-    ├── AndroidManifest.xml
-    ├── res/                       — strings, themes, launcher icons, FileProvider paths
-    └── java/com/radiosport/ninegsound/
-        ├── MainActivity.kt        — Application class (NineGSoundApp) + main activity
-        ├── data/
-        │   ├── api/               — Retrofit services: LLM7, OpenRouter, Ollama, LRCLIB
-        │   ├── models/            — domain models, Room entities, Shazam & mesh models,
-        │   │                        chart calendar (ChartKey) & chart archive entities
-        │   └── repository/        — Song, Ai, Lyrics, Settings, Mesh, Station registry repositories,
-        │                            Room database, model-verdict & Top-chart stores,
-        │                            permanent chart archive (ChartDatabase, ChartArchiveRepository)
-        ├── di/                    — Hilt module (Room, Retrofit, Gson, OkHttp)
-        ├── reach/                 — station reachability: ReachabilityLogic (pure rules + wire formats),
-        │                            PortMapper (PCP / NAT-PMP / UPnP), PublicIpResolver, ReachabilityManager
-        ├── service/               — AutoMonitorService (foreground, microphone),
-        │                            StationService (foreground, keeps a station on the air), StationBootReceiver
-        ├── update/                — in-app updates: UpdateLogic (pure rules), UpdateChecker (GitHub look),
-        │                            UpdateInstaller (download, verify, install), UpdatePrompt (pop-up + settings rows)
-        ├── ui/
-        │   ├── components/        — shared composables
-        │   ├── screens/           — SongId, Lyrics, AutoMode, History, AiAnalysis, MeshRequest, Charts, Settings, StationEntryDialog (hidden station security entry), Navigation
-        │   └── theme/             — Material 3 colours and typography
-        ├── utils/                 — AudioRecorder, ShazamFingerprint, ShazamRecognizer, SongEnricher,
-        │                            SongExporter, ChartExporter, SongShareHelper, LrcParser, TopChart,
-        │                            MeshNetworkManager, SecretCipher, StationCode, TapSequenceDetector
-        └── viewmodel/             — Song, Lyrics, Auto Mode, AI, Settings, Mesh, Charts view models
-```
 
 `companion/` (beside `app/`) is the optional helper page and connect-back test for stations — a small Cloudflare Worker; see [companion/README.md](companion/README.md).
 
@@ -299,55 +264,6 @@ The single source of truth is at the top of `app/build.gradle.kts` (`appVersionC
 - Background monitoring uses battery by design; the wake lock is released as soon as Auto Mode stops.
 
 ---
-
-## 🆕 What's New in 1.08 (this build)
-
-- **Station entry is hidden.** The Station button is gone from the Requests tab, which is now listener-only. Tap **Settings → About** 8 times in quick succession (each tap within 2 s of the last) to bring up the *Station access* pop-up, which takes the station name and its code; when accepted, the station starts and the app opens the Requests tab. The code check and lock-outs are unchanged. If a station is already running, the 8 taps just say so.
-- **`tools/station_code.py` finds the secret itself.** It reads `stationCodeSecret` from `~/.gradle/gradle.properties` (then the project's `gradle.properties`, then `NINEG_STATION_SECRET`) the same way the build does, and only prompts if none is set.
-- New unit tests for the 8-tap rule (`TapSequenceDetectorTest`).
-
-## 🆕 What's New in 1.07
-
-- **Station mode needs a code.** Becoming a station now takes the station name *and* the code issued for that name; a wrong code leaves the device a listener, with lock-outs after repeated misses. Codes are issued with `tools/station_code.py` from a build secret (see *Build → Station codes*).
-- **Stations survive restarts.** The registration is saved (code encrypted with the Keystore) and the station comes back on its own after an app restart, a kill, a reboot or an update.
-- **Stations stay on the air.** New `StationService` foreground service with wake and Wi-Fi locks, watchdog and sticky restart; the mesh port and discovery sockets now re-open themselves instead of giving up on the first error; Stop asks for confirmation; a prompt offers the battery exemption. New permissions `FOREGROUND_SERVICE_SPECIAL_USE` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; `RECEIVE_BOOT_COMPLETED` is now used.
-
-- **Stations reach the internet by themselves.** A station works out its public address from several sources, asks the router to open the mesh port (PCP, NAT-PMP, then UPnP), keeps the mapping renewed, and shows the result on the Requests tab with a plain-language reason when it can't (carrier-grade NAT, mobile data, router refusing). See *Requests → Reaching a station from outside its network*.
-- **Share a station.** *Share link* hands out a join link; tapping one in a message opens 9GSound and asks before connecting. *Connect by IP* now takes `ip:port`.
-- **Companion page (optional).** `companion/` holds a small web page and connect-back test that proves the port works from the real internet and builds link/QR sharing.
-- **Safer open port.** Connection caps, a handshake deadline, a size limit before HELLO, and a flood ceiling on every link.
-- New Settings section **Internet access (Station)**; new permission `CHANGE_WIFI_MULTICAST_STATE`.
-
-## 🆕 Update-check fix and top-bar subtitle (1.05)
-
-- **Update check fixed and made visible.** Settings → App updates now has a **Check now** button and a status line that says how the last check ended (up to date / update available / could not reach GitHub, with the reason / skipped for Battery Saver, Data Saver or no connection). Previously a skipped or failed check was silent, and a check could only happen once a day. Modelled on 9GRadio's update-check report.
-- Turning **Check for new version** on now checks straight away; a manual check also re-offers an update you had swiped away.
-- The line under the app name in the top bar now reads **Quality control on AirPlay** (the copyright and version stay in the About card at the bottom of Settings).
-- A debug build that is offered the release APK now says why it cannot install it instead of "not a newer build".
-
-## 🆕 What's New in 1.05
-
-- New **Settings page** (gear in the top bar) that gathers every app setting in one place: theme, Auto Mode station name and interval, request name and hide-played duration, and the AI provider, key and model. Dark/light is now switchable in the app.
-- **In-app updates:** a pop-up offers newer GitHub releases and installs them (see *Updates*); switch it off under Settings → App updates.
-- Auto Mode's settings card is now a compact summary with a shortcut to Settings; the Requests tab's duration chip opens Settings.
-- Fix: Auto Mode's station name and interval are now actually saved (they were only kept for the open screen).
-
-## 🆕 What's New in 1.04
-
-- New **Charts** tab: Top 10 / 25 / 40 / 50 / 100 for any week, month or year, kept permanently.
-- Top lists now cover the **year** as well as the week and month, and **Top 40** joins the list sizes.
-- Weeks now follow the chart calendar (4 per month, 48 per year) instead of Monday–Sunday weeks.
-- Station keeps every received list forever (even late ones); backup, CSV export and restore of the whole archive.
-- Seven tabs now: the navigation labels are slightly smaller.
-
-## 🆕 What's New in 1.03
-
-- Auto Mode now truly runs in the background (foreground service + wake lock).
-- A single failed recording no longer stops background monitoring.
-- Silence detection and a longer retry clip improve unattended accuracy.
-- OpenRouter key and LLM7 token are encrypted with the Android Keystore.
-- History database can no longer be silently wiped by a missing migration.
-- Notification permission is requested with the standard Android pop-up.
 
 ---
 
