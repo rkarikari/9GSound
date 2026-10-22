@@ -5,9 +5,9 @@
 **Identify what's playing. Log what's on air. Take requests from your listeners.**
 
 A radio-minded music companion for Android — Shazam-style song ID, unattended station monitoring,
-synced lyrics, AI music chat, and a serverless song-request mesh.
+synced lyrics, AI music chat, group and private chat, and a serverless song-request mesh.
 
-`Version 1.08` · `Android 8.0+` · `Kotlin` · `Jetpack Compose` · `Material 3`
+`Version 1.11` · `Android 8.0+` · `Kotlin` · `Jetpack Compose` · `Material 3`
 
 </div>
 
@@ -21,7 +21,7 @@ synced lyrics, AI music chat, and a serverless song-request mesh.
 | 🎵 **Lyrics** | Time-synced lyrics that scroll from the point in the song where you identified it |
 | 📻 **Auto** | Hands-free monitoring of a radio station on a timer, even with the screen off |
 | 📚 **History** | One entry per song with play counts, charts, and CSV/JSON export & import |
-| 🧠 **AI Chat** | Ask about your music taste and get song recommendations from free or local AI models |
+| 🧠 **AI Chat** | Ask about your music taste and get song recommendations from free or local AI models — or switch to **Group** to chat with everyone on the mesh |
 | 📡 **Requests** | Device-to-device song requests and weekly/monthly/yearly Top lists — no server needed |
 | 🏆 **Charts** | Permanent Top 10 / 25 / 40 / 50 / 100 for every week, month and year, kept for good |
 
@@ -82,6 +82,31 @@ Chat with an assistant that already knows your listening history.
 
 - **Only working models are listed.** Each LLM7 / OpenRouter model gets a tiny test call the first time the AI tab loads; models that error, return nothing or time out are hidden. Results are saved on the device, are reused across restarts and provider switches, and are discarded only if you tap **Refresh** or change the key/token. Rate limits pause the check rather than wrongly hiding models.
 
+### 👥 Group chat
+
+A switch at the top of the **AI Chat** tab flips between the AI assistant and a **group chat with everyone on the mesh** — listeners and stations alike.
+
+- **Join** from the tab with a name (the same one used for song requests), or just join the mesh from the Requests tab; the chat is open as soon as you're on it.
+- Messages pass **phone to phone** over the same links as song requests, so people several hops apart still reach each other.
+- A slim status line shows who you are, how many devices you're linked to and how many people have written in the last 15 minutes. With nobody linked it says so and offers a shortcut to the Requests tab; a line sent into the void is marked *no one was linked* instead of looking delivered.
+- Names get a steady colour, same-sender lines are grouped, days are separated, and the view stays put if you've scrolled up to read.
+- **Long-press a message** to copy it, **mute** its sender on this device, or — on a station — **ban** them (the same ban the request queue uses).
+- A badge on the **AI Chat** tab and on the **Group** side counts unread messages while the chat isn't in front of you.
+- The conversation is saved on the device (the last 300 messages) and survives restarts; ⋮ → *Clear chat on this device* empties your copy only.
+- Flood limits keep one noisy device from drowning the mesh. Because chat rides the mesh, it only runs while the app is open (or a station is on the air) — there are no background notifications.
+
+### 🔒 Private messages
+
+The switch has a third side, **Private**, for talking to **one person** on the mesh.
+
+- **Everyone who's around is listed** — phones announce themselves on the mesh about once a minute, so people appear (with a green dot while they're online). You can also **long-press a message in the group chat → *Message … privately***.
+- Messages are **end-to-end encrypted**: only you and the other person can read them. The phones that pass a message along only see scrambled data.
+- **Delivery and read receipts.** A small colour-coded symbol beside each of your messages shows where it has got to: ◷ orange *waiting* (no link yet — it goes out as soon as one appears), ✓ grey *sent*, ✓ blue *delivered* (their phone has it), ✓ green *read* (they had the conversation open). If nothing comes back it is sent again automatically for up to a day, then shows a red **!** — tap it to try again.
+- **Read receipts are optional** — turn them off in the ⋮ menu and nobody is told when you've read their messages (you still see theirs). Delivery receipts are always on.
+- Two people with the same name show a short code to tell them apart. **Verify security code** (in the conversation's ⋮ menu) lets you compare codes in person to be sure a name belongs to who you think.
+- ⋮ also lets you **delete a conversation**, **block** someone (their messages are dropped without telling them), or delete everything. Conversations are saved on the device, encrypted, and survive restarts.
+- An unread badge appears on the **AI Chat** tab and on the **Private** side.
+
 ## 📡 Requests & Top Songs
 
 A song-request network that runs over plain **TCP/UDP sockets** on Wi-Fi, mobile data, or a VPN overlay such as **ZeroTier** — no server, no Bluetooth, no location permission.
@@ -133,9 +158,9 @@ A dedicated tab with the **Top 10 / 25 / 40 / 50 / 100** for any **week, month o
 
 **The chart calendar.** Every year has 12 months and every month has exactly **4 weeks**, so a year has **48 numbered weeks**: Jan = weeks 1–4, Feb = 5–8, Mar = 9–12 … Dec = 45–48. Week 1 is days 1–7, week 2 is 8–14, week 3 is 15–21 and week 4 is day 22 to the end of the month (so the 29th–31st fall into week 4 and every day belongs to exactly one week).
 
-**Two charts per period**
-- **Station chart** — what the station consolidates from every listener's submission, ranked by how many distinct listeners share each song (total plays break ties).
-- **This device** — this phone's own most-identified songs, built from the dated play log.
+**Two charts per period — shown automatically by mode**
+- **Station chart** — shown while this device is running a station: what the station consolidates from every listener's submission, ranked by how many distinct listeners share each song (total plays break ties).
+- **This device** — shown on every other device: this phone's own most-identified songs, built from the dated play log.
 
 **Permanent by design**
 - Stored in its own Room database (`9gsound_charts.db`), separate from song history. Nothing in it is ever expired or pruned, it survives reboots and app updates, and clearing History, importing songs or the Requests tab's **Clear** button never touches it. There is deliberately no destructive-migration fallback.
